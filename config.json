@@ -1,0 +1,142 @@
+{
+  "debug": {
+    "enabled": false,
+    "show_midi_ports": false
+  },
+  "system_monitoring": {
+    "cache_interval": 0.5,
+    "cpu_percent_interval": 0.1
+  },
+  "alert_thresholds": {
+    "cpu_temp_alert": 75.0,
+    "gpu_temp_alert": 80.0,
+    "cpu_usage_alert": 80.0
+  },
+  "test_mode": {
+    "enabled": false,
+    "cpu_temp": 50.0,
+    "gpu_temp": 45.0,
+    "cpu_usage": 20.0,
+    "memory_usage": 30.0,
+    "test_alert_cpu_temp": 78.0,
+    "test_alert_gpu_temp": 85.0,
+    "test_alert_cpu_usage": 90.0,
+    "test_alert_memory_usage": 30.0
+  },
+  "midi": {
+    "input_port": "MixTrack Platinum FX:MixTrack Platinum FX MIDI 1 32:0",
+    "output_port": "MixTrack Platinum FX:MixTrack Platinum FX MIDI 1 32:0"
+  },
+  "display": {
+    "bpm_display_type": 1,
+    "time_display_type": 4
+  },
+  "leds": {
+    "channel_offset": 4,
+    "hotcue_notes": [24, 25, 26, 27],
+    "hotcue_extended_notes": [32, 33, 34, 35],
+    "autoloop_notes": [20, 21, 22, 23, 28, 29, 30, 31],
+    "loop_notes": [50, 51, 52, 53, 56, 57],
+    "play_notes": [0, 4],
+    "sync_notes": [0, 4],
+    "cue_notes": [0, 4],
+    "bpm_up_note": 9,
+    "bpm_down_note": 10,
+    "keylock_note": 13,
+    "pfl_cue_note": 27,
+    "wheel_button_note": 7,
+    "slip_note": 15,
+    "velocity_on": 127,
+    "velocity_off": 0
+  },
+  "rings": {
+    "spinner_control": 6,
+    "position_control": 63,
+    "spinner_offset": 64,
+    "max_position": 52,
+    "temp_max": 80
+  },
+  "controls": {
+    "mode_toggle_note": 32,
+    "test_mode_note": 7,
+    "firefox_launch_note": 60,
+    "volume_control": 26
+  },
+  "thermal_paths": [
+    "/sys/class/thermal/thermal_zone0/temp",
+    "/sys/class/thermal/thermal_zone1/temp",
+    "/sys/class/thermal/thermal_zone2/temp",
+    "/sys/devices/virtual/thermal/thermal_zone0/temp"
+  ],
+  "temperature_keywords": [
+    "core",
+    "cpu",
+    "k10temp",
+    "amd"
+  ],
+  "temperature_patterns": [
+    "Core 0:",
+    "Package id 0:",
+    "Tdie:",
+    "Tctl:",
+    "CPU Temperature"
+  ],
+  "gpu_keywords": [
+    "amdgpu",
+    "radeon"
+  ],
+  "threading": {
+    "midi_sleep": 0.001,
+    "main_loop_sleep": 0.001
+  },
+  "effects": {
+    "unit1": {
+      "effect1_note": 0,
+      "effect2_note": 1,
+      "effect3_note": 2,
+      "enable_switch_cc": 3,
+      "dry_wet_cc": 4,
+      "channel": 8
+    },
+    "unit2": {
+      "effect1_note": 3,
+      "effect2_note": 4,
+      "effect3_note": 5,
+      "enable_switch_cc": 3,
+      "dry_wet_cc": 4,
+      "channel": 9
+    }
+  },
+  "audio_routing": {
+    "main_gain": {
+      "status": 190,
+      "control": 35,
+      "channel": 14,
+      "description": "Master output gain"
+    },
+    "cue_gain": {
+      "status": 191,
+      "control": 12,
+      "channel": 15,
+      "description": "Headphone/cue output gain"
+    },
+    "cue_mix": {
+      "status": 191,
+      "control": 13,
+      "channel": 15,
+      "description": "Cue mix level"
+    },
+    "deck_volume": {
+      "control": 28,
+      "description": "Deck volume level"
+    },
+    "deck_gain": {
+      "control": 22,
+      "description": "Deck input gain"
+    },
+    "pfl_button": {
+      "note": 27,
+      "description": "Pre-Fader Listen toggle"
+    }
+  }
+}
