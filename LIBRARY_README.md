@@ -5,7 +5,7 @@ A comprehensive Python library for controlling the Numark Mixtrack Platinum FX c
 ## 🎛️ Features
 
 ### Core Hardware Control
-- **LED Control**: Complete control over button LEDs (hotcues, autoloops, loops, play, sync, cue, BPM arrows, keylock, wheel buttons, slip indicators)
+- **LED Control**: Control over button LEDs (hotcues, autoloops, loops, play, sync, cue, BPM arrows, keylock, wheel buttons, slip indicators)
 - **Ring Light Control**: Spinner and position ring control with percentage-based positioning
 - **Display Control**: BPM displays, time displays, and jogger displays (rate displays)
 - **MIDI Input Handling**: Real-time MIDI message processing with callback system
