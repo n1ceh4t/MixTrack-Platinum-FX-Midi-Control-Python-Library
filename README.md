@@ -4,14 +4,13 @@ A comprehensive, refactored Python library for controlling the Numark Mixtrack P
 
 ## ✨ Features
 
-- **🎛️ Complete MIDI Protocol Support** - Full control of all 50+ LEDs, displays, rings, and controls
+- **🎛️ Complete MIDI Protocol Support** - Partial control of LEDs, full control of displays and rings
 - **📊 Rate Display** - Jogger display percentage output
 - **📈 System Monitoring** - Real-time CPU/GPU temperature and usage display with VU meter alerts
 - **🎵 Audio Control** - Volume, effects, and routing control
 - **⚙️ Advanced Configuration** - Type-safe configuration system with validation
 - **🔧 Button LED Feedback** - Automatic LED feedback when buttons are pressed
 - **🛡️ Error Handling** - Comprehensive error handling and logging
-- **📚 Clean Architecture** - Refactored for maintainability and extensibility
 - **🐧 Linux Integration** - Designed for system control applications
 
 ## Installation
