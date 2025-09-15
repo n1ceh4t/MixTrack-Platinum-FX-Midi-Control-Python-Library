@@ -4,7 +4,7 @@ A comprehensive Python library for controlling the Numark Mixtrack Platinum FX D
 
 ## Features
 
-- **Complete MIDI Protocol Support** - Full control of all 50+ LEDs, displays, rings, and controls
+- **Complete MIDI Protocol Support** - Partial control of all LEDs, displays, rings, and controls
 - **System Monitoring** - Real-time CPU/GPU temperature and usage display
 - **Audio Control** - Volume, effects, and routing control
 - **Configurable** - JSON-based configuration for all settings
