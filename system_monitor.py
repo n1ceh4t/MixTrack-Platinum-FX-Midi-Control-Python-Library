@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-System Monitor - Integration module for system monitoring with MixtrackPlatinumFX.
+System Monitor Library - Core system monitoring functionality for MixtrackPlatinumFX.
 
-This module provides system monitoring capabilities that integrate with the
-MixtrackPlatinumFX controller for real-time system vitals display.
+This module provides the core system monitoring capabilities that integrate with the
+MixtrackPlatinumFX controller. It focuses on data collection, alert detection, and
+basic controller updates without UI-specific logic.
+
+For examples and demonstrations, see examples/system_monitoring.py
 """
 
 import psutil
@@ -12,9 +15,19 @@ import time
 import os
 import threading
 import json
-from typing import Dict, Optional, Callable
-from dataclasses import dataclass
+import logging
+from typing import Dict, Optional, Callable, List, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
 from mixtrack_platinum_fx import MixtrackPlatinumFX, RingType, LEDType
+
+
+class AlertType(Enum):
+    """Types of system alerts"""
+    CPU_TEMP = "cpu_temp"
+    GPU_TEMP = "gpu_temp"
+    CPU_USAGE = "cpu_usage"
+    MEMORY_USAGE = "memory_usage"
 
 
 @dataclass
@@ -35,6 +48,10 @@ class AlertThresholds:
             cpu_usage=thresholds.get('cpu_usage_alert', 80.0),
             memory_usage=thresholds.get('memory_usage_alert', 90.0)
         )
+    
+    def get_threshold(self, alert_type: AlertType) -> float:
+        """Get threshold for specific alert type"""
+        return getattr(self, alert_type.value)
 
 
 @dataclass
@@ -44,7 +61,7 @@ class SystemVitals:
     memory_usage: float
     cpu_temp: float
     gpu_temp: float
-    timestamp: float
+    timestamp: float = field(default_factory=time.time)
     
     @classmethod
     def from_test_config(cls, config: Dict) -> 'SystemVitals':
@@ -54,16 +71,53 @@ class SystemVitals:
             cpu_usage=test_config.get('cpu_usage', 20.0),
             memory_usage=test_config.get('memory_usage', 30.0),
             cpu_temp=test_config.get('cpu_temp', 50.0),
-            gpu_temp=test_config.get('gpu_temp', 45.0),
-            timestamp=time.time()
+            gpu_temp=test_config.get('gpu_temp', 45.0)
         )
+    
+    def get_metric(self, metric_name: str) -> float:
+        """Get metric value by name"""
+        return getattr(self, metric_name, 0.0)
+    
+    def to_dict(self) -> Dict[str, float]:
+        """Convert to dictionary"""
+        return {
+            'cpu_usage': self.cpu_usage,
+            'memory_usage': self.memory_usage,
+            'cpu_temp': self.cpu_temp,
+            'gpu_temp': self.gpu_temp,
+            'timestamp': self.timestamp
+        }
+
+
+@dataclass
+class AlertState:
+    """Current alert state"""
+    alerts: Dict[AlertType, bool] = field(default_factory=dict)
+    any_alert: bool = False
+    timestamp: float = field(default_factory=time.time)
+    
+    def update(self, vitals: SystemVitals, thresholds: AlertThresholds):
+        """Update alert state based on vitals and thresholds"""
+        self.alerts = {
+            AlertType.CPU_TEMP: vitals.cpu_temp >= thresholds.cpu_temp,
+            AlertType.GPU_TEMP: vitals.gpu_temp >= thresholds.gpu_temp,
+            AlertType.CPU_USAGE: vitals.cpu_usage >= thresholds.cpu_usage,
+            AlertType.MEMORY_USAGE: vitals.memory_usage >= thresholds.memory_usage
+        }
+        self.any_alert = any(self.alerts.values())
+        self.timestamp = time.time()
+    
+    def get_active_alerts(self) -> List[AlertType]:
+        """Get list of active alert types"""
+        return [alert_type for alert_type, active in self.alerts.items() if active]
 
 
 class SystemMonitor:
     """
-    System monitoring class that integrates with MixtrackPlatinumFX.
+    Core system monitoring class for MixtrackPlatinumFX integration.
     
-    Provides real-time system monitoring with visual feedback on the controller.
+    Provides system vitals collection, alert detection, and basic controller updates.
+    Focuses on data collection and alert logic without UI-specific implementations.
     """
     
     def __init__(self, 
@@ -71,7 +125,7 @@ class SystemMonitor:
                  config: Optional[Dict] = None,
                  thresholds: Optional[AlertThresholds] = None,
                  cache_interval: Optional[float] = None,
-                 debug: Optional[bool] = None):
+                 logger: Optional[logging.Logger] = None):
         """
         Initialize system monitor.
         
@@ -80,9 +134,10 @@ class SystemMonitor:
             config: Configuration dictionary (loads from config.json if None)
             thresholds: Alert thresholds configuration (overrides config)
             cache_interval: Cache update interval in seconds (overrides config)
-            debug: Enable debug output (overrides config)
+            logger: Logger instance (creates default if None)
         """
         self.controller = controller
+        self.logger = logger or self._create_logger()
         
         # Load configuration
         if config is None:
@@ -92,7 +147,6 @@ class SystemMonitor:
         self.config = config
         self.thresholds = thresholds or AlertThresholds.from_config(config)
         self.cache_interval = cache_interval or config.get('system_monitoring', {}).get('cache_interval', 0.5)
-        self.debug = debug if debug is not None else config.get('debug', {}).get('enabled', False)
         self.test_mode = config.get('test_mode', {}).get('enabled', False)
         
         # Thermal detection configuration
@@ -127,10 +181,20 @@ class SystemMonitor:
         # Monitoring state
         self.running = False
         self.monitor_thread = None
-        self.flash_state = False
+        self.alert_state = AlertState()
         
-        if self.debug:
-            print("SystemMonitor initialized")
+        self.logger.info("SystemMonitor initialized")
+    
+    def _create_logger(self) -> logging.Logger:
+        """Create default logger"""
+        logger = logging.getLogger('SystemMonitor')
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+        return logger
     
     def _load_config(self) -> Dict:
         """Load configuration from config.json file"""
@@ -139,24 +203,52 @@ class SystemMonitor:
             with open(config_file, 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            if self.debug:
-                print(f"Config file not found: {config_file}, using defaults")
+            self.logger.debug(f"Config file not found: {config_file}, using defaults")
             return self._get_default_config()
         except json.JSONDecodeError as e:
-            if self.debug:
-                print(f"Error parsing config file: {e}, using defaults")
+            self.logger.debug(f"Error parsing config file: {e}, using defaults")
             return self._get_default_config()
     
     def _get_default_config(self) -> Dict:
         """Get default configuration"""
         return {
             'debug': {'enabled': False},
-            'system_monitoring': {'cache_interval': 0.5},
+            'system_monitoring': {
+                'cache_interval': 0.5,
+                'jogger_display_assignments': {
+                    'deck1': 'cpu_usage',
+                    'deck2': 'memory_usage'
+                }
+            },
             'alert_thresholds': {
                 'cpu_temp_alert': 75.0,
                 'gpu_temp_alert': 80.0,
                 'cpu_usage_alert': 80.0,
                 'memory_usage_alert': 90.0
+            },
+            'alert_behavior': {
+                'enabled': True,
+                'flash_leds': True,
+                'flash_rings': True,
+                'flash_vu_meters': True,
+                'led_types_to_flash': [
+                    'hotcue', 'extended_hotcue', 'autoloop', 'loop', 'play', 'sync', 'cue',
+                    'pfl_cue', 'bpm_up', 'bpm_down', 'keylock', 'wheel_button', 'slip',
+                    'deck_active', 'rate_display', 'pad_mode_hotcue', 'pad_mode_autoloop',
+                    'pad_mode_fadercuts', 'pad_mode_sample1', 'pad_mode_sample2',
+                    'pad1', 'pad2', 'pad3', 'pad4', 'pad5', 'pad6', 'pad7', 'pad8',
+                    'effect1', 'effect2', 'effect3'
+                ],
+                'ring_behavior': {
+                    'flash_both_rings': True,
+                    'flash_red_ring_only': False,
+                    'flash_white_ring_only': False
+                },
+                'vu_meter_behavior': {
+                    'alternating_pattern': True,
+                    'deck1_level': 0,
+                    'deck2_level': 67
+                }
             },
             'test_mode': {'enabled': False},
             'thermal_paths': [
@@ -180,6 +272,7 @@ class SystemMonitor:
             update_interval: Update interval in seconds
         """
         if self.running:
+            self.logger.warning("Monitoring already running")
             return
         
         self.running = True
@@ -190,17 +283,24 @@ class SystemMonitor:
         )
         self.monitor_thread.start()
         
-        if self.debug:
-            print(f"System monitoring started (interval: {update_interval}s)")
+        self.logger.info(f"System monitoring started (interval: {update_interval}s)")
     
     def stop_monitoring(self):
         """Stop system monitoring"""
+        if not self.running:
+            return
+            
         self.running = False
         if self.monitor_thread and self.monitor_thread.is_alive():
             self.monitor_thread.join(timeout=1.0)
         
-        if self.debug:
-            print("System monitoring stopped")
+        # Clean up controller state
+        try:
+            self.controller.clear_all_vu_meters()
+        except Exception as e:
+            self.logger.error(f"Error cleaning up controller: {e}")
+        
+        self.logger.info("System monitoring stopped")
     
     def _monitor_loop(self, update_interval: float):
         """Main monitoring loop"""
@@ -209,22 +309,18 @@ class SystemMonitor:
                 # Get current system vitals
                 vitals = self.get_system_vitals()
                 
-                # Check for alerts
-                alerts = self.check_alerts(vitals)
-                
-                # Update controller display
-                self._update_controller_display(vitals, alerts)
+                # Update alert state
+                self.alert_state.update(vitals, self.thresholds)
                 
                 # Handle alerts
-                if alerts['any_alert']:
-                    self._handle_alerts(alerts)
+                if self.alert_state.any_alert:
+                    self._handle_alerts()
                 
                 # Wait for next update
                 time.sleep(update_interval)
                 
             except Exception as e:
-                if self.debug:
-                    print(f"Monitoring error: {e}")
+                self.logger.error(f"Monitoring error: {e}")
                 time.sleep(1.0)
     
     def get_system_vitals(self) -> SystemVitals:
@@ -254,8 +350,7 @@ class SystemMonitor:
             self._cache['gpu_temp'] = self._get_gpu_temp()
             self._cache['last_update'] = current_time
         except Exception as e:
-            if self.debug:
-                print(f"Error updating system cache: {e}")
+            self.logger.error(f"Error updating system cache: {e}")
         
         return SystemVitals(
             cpu_usage=self._cache['cpu_usage'],
@@ -319,8 +414,7 @@ class SystemMonitor:
             return 0.0
             
         except Exception as e:
-            if self.debug:
-                print(f"CPU temp error: {e}")
+            self.logger.error(f"CPU temp error: {e}")
             return 0.0
     
     def _get_gpu_temp(self) -> float:
@@ -354,88 +448,53 @@ class SystemMonitor:
             return 0.0
             
         except Exception as e:
-            if self.debug:
-                print(f"GPU temp error: {e}")
+            self.logger.error(f"GPU temp error: {e}")
             return 0.0
     
-    def check_alerts(self, vitals: SystemVitals) -> Dict[str, bool]:
+    def get_current_vitals(self) -> SystemVitals:
+        """Get current system vitals (public interface)"""
+        return self.get_system_vitals()
+    
+    def get_current_alerts(self) -> AlertState:
+        """Get current alert state (public interface)"""
+        return self.alert_state
+    
+    def _handle_alerts(self):
+        """Handle alert conditions by calling registered callbacks"""
+        try:
+            # Call registered alert callbacks
+            for callback_name, callback in self.alert_callbacks.items():
+                try:
+                    callback(self.alert_state)
+                except Exception as e:
+                    self.logger.error(f"Alert callback {callback_name} error: {e}")
+        except Exception as e:
+            self.logger.error(f"Error handling alerts: {e}")
+    
+    def get_metric_value(self, vitals: SystemVitals, metric_name: str) -> float:
         """
-        Check for alert conditions.
+        Get the appropriate value for a metric, scaling temperatures to 0-100%
         
         Args:
-            vitals: System vitals to check
+            vitals: System vitals data
+            metric_name: Name of the metric (cpu_temp, gpu_temp, cpu_usage, memory_usage)
             
         Returns:
-            Dictionary of alert states
+            Scaled value (0-100%)
         """
-        alerts = {
-            'cpu_temp_alert': vitals.cpu_temp >= self.thresholds.cpu_temp,
-            'gpu_temp_alert': vitals.gpu_temp >= self.thresholds.gpu_temp,
-            'cpu_usage_alert': vitals.cpu_usage >= self.thresholds.cpu_usage,
-            'memory_usage_alert': vitals.memory_usage >= self.thresholds.memory_usage
-        }
-        
-        alerts['any_alert'] = any(alerts.values())
-        
-        return alerts
-    
-    def _update_controller_display(self, vitals: SystemVitals, alerts: Dict[str, bool]):
-        """Update controller display with system vitals"""
-        if alerts['any_alert']:
-            # Flash mode - toggle flash state
-            self.flash_state = not self.flash_state
+        if metric_name == 'cpu_temp':
+            # Scale CPU temperature to 0-100% (assuming max 80°C)
+            return min(vitals.cpu_temp * 100.0 / 80.0, 100.0)
+        elif metric_name == 'gpu_temp':
+            # Scale GPU temperature to 0-100% (assuming max 80°C)
+            return min(vitals.gpu_temp * 100.0 / 80.0, 100.0)
+        elif metric_name == 'cpu_usage':
+            return vitals.cpu_usage
+        elif metric_name == 'memory_usage':
+            return vitals.memory_usage
         else:
-            # Normal mode
-            self.flash_state = False
-        
-        # Update deck 1 (CPU usage and memory usage)
-        if alerts['any_alert']:
-            # Flash all LEDs and rings
-            self.controller.flash_all_leds(1, self.flash_state)
-            self.controller.set_ring_percentage(1, RingType.SPINNER, 100.0 if self.flash_state else 0.0)
-            self.controller.set_ring_percentage(1, RingType.POSITION, 100.0 if self.flash_state else 0.0)
-        else:
-            # Normal display
-            self.controller.clear_all_leds()
-            self.controller.set_ring_percentage(1, RingType.SPINNER, vitals.cpu_usage)
-            self.controller.set_ring_percentage(1, RingType.POSITION, vitals.memory_usage)
-        
-        # Update deck 2 (CPU temp and GPU temp)
-        if alerts['any_alert']:
-            # Flash all LEDs and rings
-            self.controller.flash_all_leds(2, self.flash_state)
-            self.controller.set_ring_percentage(2, RingType.SPINNER, 100.0 if self.flash_state else 0.0)
-            self.controller.set_ring_percentage(2, RingType.POSITION, 100.0 if self.flash_state else 0.0)
-        else:
-            # Normal display
-            self.controller.clear_all_leds()
-            # Scale temperatures to 0-100% (assuming max 80°C)
-            cpu_temp_percent = min(vitals.cpu_temp * 100.0 / 80.0, 100.0)
-            gpu_temp_percent = min(vitals.gpu_temp * 100.0 / 80.0, 100.0)
-            self.controller.set_ring_percentage(2, RingType.SPINNER, cpu_temp_percent)
-            self.controller.set_ring_percentage(2, RingType.POSITION, gpu_temp_percent)
-        
-        # Update BPM displays with temperatures
-        self.controller.set_bpm_display(1, vitals.cpu_temp)
-        self.controller.set_bpm_display(2, vitals.gpu_temp)
-        
-        # Update time display
-        self.controller.set_current_time_display(1)
-        self.controller.set_current_time_display(2)
-        
-        if self.debug and alerts['any_alert']:
-            alert_types = [k for k, v in alerts.items() if v and k != 'any_alert']
-            print(f"🚨 ALERT: {', '.join(alert_types)}")
-    
-    def _handle_alerts(self, alerts: Dict[str, bool]):
-        """Handle alert conditions"""
-        # Call registered alert callbacks
-        for callback_name, callback in self.alert_callbacks.items():
-            try:
-                callback(alerts)
-            except Exception as e:
-                if self.debug:
-                    print(f"Alert callback {callback_name} error: {e}")
+            # Default to 0 if unknown metric
+            return 0.0
     
     def register_alert_callback(self, name: str, callback: Callable):
         """
@@ -443,69 +502,39 @@ class SystemMonitor:
         
         Args:
             name: Unique name for the callback
-            callback: Function to call when alerts occur
+            callback: Function to call when alerts occur (receives AlertState)
         """
         self.alert_callbacks[name] = callback
+        self.logger.info(f"Registered alert callback: {name}")
     
     def unregister_alert_callback(self, name: str):
         """Unregister an alert callback"""
         if name in self.alert_callbacks:
             del self.alert_callbacks[name]
+            self.logger.info(f"Unregistered alert callback: {name}")
     
     def set_alert_thresholds(self, thresholds: AlertThresholds):
         """Update alert thresholds"""
         self.thresholds = thresholds
-        if self.debug:
-            print(f"Alert thresholds updated: {thresholds}")
+        self.logger.info(f"Alert thresholds updated: {thresholds}")
 
 
 # Convenience functions
 
 def create_system_monitor(controller: MixtrackPlatinumFX,
                          thresholds: Optional[AlertThresholds] = None,
-                         debug: bool = False) -> SystemMonitor:
+                         config: Optional[Dict] = None,
+                         logger: Optional[logging.Logger] = None) -> SystemMonitor:
     """
     Create a system monitor instance.
     
     Args:
         controller: MixtrackPlatinumFX controller instance
         thresholds: Alert thresholds configuration
-        debug: Enable debug output
+        config: Configuration dictionary
+        logger: Logger instance
         
     Returns:
         SystemMonitor instance
     """
-    return SystemMonitor(controller, thresholds, debug=debug)
-
-
-if __name__ == "__main__":
-    # Example usage
-    from mixtrack_platinum_fx import create_controller
-    
-    with create_controller(debug=True) as controller:
-        # Create system monitor
-        thresholds = AlertThresholds(
-            cpu_temp=75.0,
-            gpu_temp=80.0,
-            cpu_usage=80.0,
-            memory_usage=90.0
-        )
-        
-        monitor = create_system_monitor(controller, thresholds, debug=True)
-        
-        # Add alert callback
-        def alert_callback(alerts):
-            print(f"Alert triggered: {alerts}")
-        
-        monitor.register_alert_callback("test", alert_callback)
-        
-        # Start monitoring
-        monitor.start_monitoring(update_interval=1.0)
-        
-        try:
-            print("System monitoring started. Press Ctrl+C to stop.")
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            print("Stopping monitoring...")
-            monitor.stop_monitoring()
+    return SystemMonitor(controller, config=config, thresholds=thresholds, logger=logger)

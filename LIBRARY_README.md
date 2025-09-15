@@ -5,9 +5,9 @@ A comprehensive Python library for controlling the Numark Mixtrack Platinum FX c
 ## 🎛️ Features
 
 ### Core Hardware Control
-- **LED Control**: Complete control over all button LEDs (hotcues, autoloops, loops, play, sync, cue, BPM arrows, keylock, wheel buttons, slip indicators)
+- **LED Control**: Complete control over button LEDs (hotcues, autoloops, loops, play, sync, cue, BPM arrows, keylock, wheel buttons, slip indicators)
 - **Ring Light Control**: Spinner and position ring control with percentage-based positioning
-- **Display Control**: BPM displays, time displays, and jog wheel displays
+- **Display Control**: BPM displays, time displays, and jogger displays (rate displays)
 - **MIDI Input Handling**: Real-time MIDI message processing with callback system
 
 ### System Integration
@@ -46,7 +46,7 @@ pip install mido psutil
 from mixtrack_platinum_fx import create_controller, LEDType, RingType
 
 # Create and connect to controller
-with create_controller(debug=True) as controller:
+with create_controller(debug=False) as controller:
     # Flash hotcue LEDs
     controller.set_led(1, LEDType.HOTCUE, True)
     
@@ -55,6 +55,9 @@ with create_controller(debug=True) as controller:
     
     # Set BPM display
     controller.set_bpm_display(1, 128.5)
+    
+    # Set jogger display
+    controller.set_rate_display(1, 45.2)  # Show 45.2% on jogger
 ```
 
 ### System Monitoring
@@ -151,6 +154,9 @@ controller.set_bpm_display(deck, 128.5)
 
 # Set time display
 controller.set_time_display(deck, time_ms)
+
+# Set jogger display (rate display)
+controller.set_rate_display(deck, rate_percent)
 
 # Set current time
 controller.set_current_time_display(deck)
@@ -296,6 +302,18 @@ The library uses JSON configuration files for all settings:
 }
 ```
 
+## Implementation Notes
+
+### Channel Scheme
+
+- Inputs: 0/1 (decks), 4/5 (pads/LED layer), 8/9 (FX)
+- Outputs: 4/5 for deck LEDs (via `channel_offset`), 8/9 for FX
+- The library centralizes routing so inputs on 0/1 are rendered on 4/5 automatically.
+
+### LED Off Behavior
+
+- LEDs are cleared using `note_on` with velocity `1` for reliable off state.
+
 ## 📁 Project Structure
 
 ```
@@ -378,10 +396,8 @@ with create_controller() as controller:
 - Verify EasyEffects is not in demo mode
 
 ### Debug Mode
-Enable debug mode for detailed logging:
-```python
-controller = create_controller(debug=True)
-```
+- Prefer `debug=False` for normal use. Set `debug=True` only when diagnosing.
+- Alternatively, set `debug.enabled` in `config.json` to control logs globally.
 
 ## 🤝 Contributing
 

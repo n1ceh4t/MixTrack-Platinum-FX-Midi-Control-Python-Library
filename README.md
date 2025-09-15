@@ -1,14 +1,18 @@
 # Mixtrack Platinum FX Python Library
 
-A comprehensive Python library for controlling the Numark Mixtrack Platinum FX DJ controller as a Linux system control interface.
+A comprehensive, refactored Python library for controlling the Numark Mixtrack Platinum FX DJ controller as a Linux system control interface.
 
-## Features
+## ✨ Features
 
-- **Complete MIDI Protocol Support** - Full control of all 50+ LEDs, displays, rings, and controls
-- **System Monitoring** - Real-time CPU/GPU temperature and usage display
-- **Audio Control** - Volume, effects, and routing control
-- **Configurable** - JSON-based configuration for all settings
-- **Linux Integration** - Designed for system control applications
+- **🎛️ Complete MIDI Protocol Support** - Full control of all 50+ LEDs, displays, rings, and controls
+- **📊 Rate Display** - Jogger display percentage output
+- **📈 System Monitoring** - Real-time CPU/GPU temperature and usage display with VU meter alerts
+- **🎵 Audio Control** - Volume, effects, and routing control
+- **⚙️ Advanced Configuration** - Type-safe configuration system with validation
+- **🔧 Button LED Feedback** - Automatic LED feedback when buttons are pressed
+- **🛡️ Error Handling** - Comprehensive error handling and logging
+- **📚 Clean Architecture** - Refactored for maintainability and extensibility
+- **🐧 Linux Integration** - Designed for system control applications
 
 ## Installation
 
@@ -28,61 +32,89 @@ sudo apt install lm-sensors
 2. **Connect** your Mixtrack Platinum FX via USB
 3. **Configure** MIDI ports in `config.json` (auto-detected on first run)
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Basic Usage
 
 ```python
-from mixtrack_platinum_fx import MixtrackPlatinumFX
+from mixtrack_platinum_fx import create_controller, LEDType, RingType
 
-# Initialize controller
-controller = MixtrackPlatinumFX()
+# Initialize controller with context manager (recommended)
+with create_controller(debug=False) as controller:
+    # Control LEDs using the new unified API
+    controller.set_led(1, LEDType.HOTCUE, True)      # Turn on hotcue LEDs on deck 1
+    controller.set_led(1, LEDType.BPM_UP, True)      # Turn on BPM up LED on deck 1
+    controller.set_led(2, LEDType.PLAY, True)        # Turn on play LED on deck 2
+    
+    # Control displays
+    controller.set_bpm_display(1, 128.5)             # Set deck 1 BPM display to 128.5
+    controller.set_time_display(1, 180)              # Set deck 1 time display to 3:00
+    controller.set_rate_display(1, 5.0)              # Set deck 1 rate display to +5.0%
+    
+    # Control VU meters
+    controller.set_vu_meter(1, 75)                   # Set deck 1 VU meter to 75%
+    controller.set_vu_meter(2, 50)                   # Set deck 2 VU meter to 50%
+    
+    # Control ring lights
+    controller.set_ring_percentage(1, RingType.SPINNER, 50.0)   # Set deck 1 spinner to 50%
+    controller.set_ring_percentage(1, RingType.POSITION, 25.0)  # Set deck 1 position to 25%
+    
+    # Button LED feedback is automatically enabled!
+    # Press any button on the controller to see its LED light up
+```
 
-# Connect to device
-controller.connect()
+### Advanced Usage with Configuration
 
-# Control LEDs
-controller.set_led(controller.led_config.hotcue_notes[0], True)  # Turn on first hotcue LED
-controller.set_led(controller.led_config.bpm_up_note, True)     # Turn on BPM up LED
+```python
+from mixtrack_platinum_fx import create_controller, ControllerConfig, LEDType
 
-# Control displays
-controller.set_display_bpm(1, 128.5)  # Set deck 1 BPM display to 128.5
-controller.set_display_time(1, 180)   # Set deck 1 time display to 3:00
+# Create custom configuration
+config = ControllerConfig()
+config.midi.button_led_feedback = True
+config.midi.led_feedback_duration = 0.3
+config.debug = {"enabled": false}
 
-# Control ring lights
-controller.set_ring(RingType.SPINNER, 1, 0.5)  # Set deck 1 spinner to 50%
-controller.set_ring(RingType.POSITION, 1, 0.25) # Set deck 1 position to 25%
-
-# Disconnect
-controller.disconnect()
+# Initialize with custom config
+with create_controller(config=config) as controller:
+    # Your code here
+    pass
 ```
 
 ### System Monitoring
 
 ```python
-from mixtrack_platinum_fx import MixtrackPlatinumFX
-from system_monitor import SystemMonitor
+from mixtrack_platinum_fx import create_controller
+from system_monitor import SystemMonitor, AlertThresholds
 
 # Initialize controller and system monitor
-controller = MixtrackPlatinumFX()
-monitor = controller.create_system_monitor()  # Uses config.json settings
-
-# Start monitoring
-monitor.start_monitoring()
-
-# System vitals are automatically displayed on controller
-# - CPU/GPU temps on ring lights
-# - Usage percentages on displays
-# - Alert LEDs for high temperatures
+with create_controller(debug=False) as controller:
+    # Create system monitor with custom thresholds
+    thresholds = AlertThresholds(
+        cpu_temp=77.0,      # Alert if CPU temp >= 77°C
+        gpu_temp=80.0,      # Alert if GPU temp >= 80°C
+        cpu_usage=80.0,     # Alert if CPU usage >= 80%
+        memory_usage=90.0   # Alert if memory usage >= 90%
+    )
+    
+    monitor = SystemMonitor(controller=controller, thresholds=thresholds)
+    
+    # Start monitoring
+    monitor.start_monitoring()
+    
+    # System vitals are automatically displayed on controller:
+    # - CPU/GPU temps on ring lights and BPM displays
+    # - Usage percentages on jogger displays
+    # - VU meter alerts with alternating patterns at 90%
+    # - Button LED feedback for user interaction
 ```
 
-### Audio Control
+### Raw MIDI (optional)
 
 ```python
-# Control audio routing (requires MIDI-compatible audio software)
-controller.send_control_change(14, 35, 64)  # Set main gain to 50%
-controller.send_control_change(15, 12, 96)  # Set cue gain to 75%
-controller.send_note_on(0, 27, 127)         # Enable PFL on deck 1
+# You can send raw MIDI with mido via the controller's outport
+import mido
+controller.outport.send(mido.Message('control_change', channel=14, control=35, value=64))
+controller.outport.send(mido.Message('note_on', channel=0, note=27, velocity=127))
 ```
 
 ## Configuration
@@ -105,10 +137,19 @@ Edit `config.json` to customize:
   "alert_thresholds": {
     "cpu_temp_alert": 75.0,
     "gpu_temp_alert": 80.0,
-    "cpu_usage_alert": 80.0
+    "cpu_usage_alert": 80.0,
+    "memory_usage_alert": 90.0
   },
   "system_monitoring": {
-    "cache_interval": 0.5
+    "cache_interval": 1.0,
+    "ring_assignments": {
+      "deck1": {"red_ring": "cpu_temp", "white_ring": "cpu_usage"},
+      "deck2": {"red_ring": "gpu_temp", "white_ring": "memory_usage"}
+    },
+    "jogger_display_assignments": {
+      "deck1": "cpu_usage",
+      "deck2": "memory_usage"
+    }
   }
 }
 ```
@@ -130,8 +171,8 @@ Edit `config.json` to customize:
 
 ### Core Controller
 
-#### `MixtrackPlatinumFX(config_file=None, debug=False)`
-Initialize the controller with optional config file and debug mode.
+#### `MixtrackPlatinumFX(input_port=None, output_port=None, config=None, debug=False)`
+Initialize the controller. Ports may be auto-detected; config can be a dict or `ControllerConfig`.
 
 #### `connect(input_port=None, output_port=None)`
 Connect to MIDI ports. Uses config.json settings if ports not specified.
@@ -141,17 +182,8 @@ Disconnect from MIDI ports.
 
 ### LED Control
 
-#### `set_led(note, state, velocity=None)`
-Control individual LEDs.
-- `note`: MIDI note number
-- `state`: True/False or velocity (0-127)
-- `velocity`: Optional velocity override
-
-#### `set_led_blink(note, enabled)`
-Enable/disable LED blinking.
-
-#### `all_leds_off()`
-Turn off all LEDs.
+#### `set_led(deck, led_type, state)`
+Control LEDs by type and deck via unified API.
 
 ### Display Control
 
@@ -161,19 +193,19 @@ Set BPM display for specified deck.
 #### `set_display_time(deck, seconds)`
 Set time display for specified deck.
 
-#### `set_display_rate(deck, rate)`
-Set rate display for specified deck.
+#### `set_rate_display(deck, rate_percent)`
+Set jogger display (rate display) for specified deck showing percentage.
 
-#### `set_display_duration(deck, seconds)`
-Set duration display for specified deck.
+#### `set_current_time_display(deck)`
+Show current time (HH:MM) on deck display.
 
 ### Ring Light Control
 
-#### `set_ring(ring_type, deck, position)`
-Control ring lights.
-- `ring_type`: `RingType.SPINNER` or `RingType.POSITION`
-- `deck`: Deck number (1-4)
-- `position`: Position (0.0-1.0)
+#### `set_ring(deck, ring_type, position)`
+Set ring light to a specific position (integer 0..max).
+
+#### `set_ring_percentage(deck, ring_type, percentage)`
+Set ring light using a percentage (0.0..100.0).
 
 ### System Monitoring
 
@@ -188,17 +220,15 @@ Stop system monitoring.
 
 ### MIDI Control
 
-#### `send_note_on(channel, note, velocity)`
-Send MIDI note on message.
+Use `controller.outport.send(mido.Message(...))` for raw MIDI when needed.
 
-#### `send_note_off(channel, note, velocity=0)`
-Send MIDI note off message.
+## Rate Display
 
-#### `send_control_change(channel, control, value)`
-Send MIDI control change message.
+Use `set_rate_display(deck, percent)` to show a percentage on the jogger display.
 
-#### `send_sysex(data)`
-Send MIDI system exclusive message.
+## FX Button LEDs
+
+FX button helper APIs were removed to keep the surface minimal. If needed, you can send MIDI note_on/note_off directly.
 
 ## Examples
 
@@ -218,9 +248,9 @@ controller.set_led_blink(controller.led_config.bpm_up_note, True)
 ### Display Updates
 ```python
 # Update displays with system info
-controller.set_display_bpm(1, 128.5)
-controller.set_display_time(1, 180)  # 3:00
-controller.set_display_rate(1, 1.05)  # +5% rate
+controller.set_bpm_display(1, 128.5)
+controller.set_time_display(1, 180)  # 3:00
+controller.set_rate_display(1, 45.2)  # 45.2% on jogger display
 ```
 
 ### Ring Light Visualization
@@ -273,6 +303,22 @@ sudo sensors-detect
 # Test temperature reading
 sensors
 ```
+
+## Implementation Notes
+
+### Channel Scheme
+
+- Inputs: 0/1 (deck buttons), 4/5 (pads/LED layer), 8/9 (FX buttons)
+- Outputs (LED): 4/5 for decks 1/2; FX use 8/9
+- The library centralizes this mapping and automatically routes deck inputs (0/1) to LED outputs (4/5).
+
+### LED Off Behavior
+
+- LEDs clear reliably using `note_on` with velocity `1` instead of `note_off`.
+
+### Debug Control
+
+- Pass `debug=False` in code for normal use; set `config.debug.enabled` to toggle globally without code changes.
 
 ## File Structure
 

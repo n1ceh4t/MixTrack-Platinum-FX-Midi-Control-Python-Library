@@ -4,3 +4,9 @@ Resources/Numark-Mixtrack-Platinum-FX-scripts.js
 Resources/ROADMAP.md
 Resources/Untitled-1.js
 Resources/README.md
+tests/__pycache__/encoding_tester.cpython-313.pyc
+tests/__pycache__/pitch_display_tester.cpython-313.pyc
+tests/__pycache__/rate_display_tester.cpython-313.pyc
+__pycache__/mixtrack_platinum_fx.cpython-313.pyc
+__pycache__/system_monitor.cpython-313.pyc
+/examples/__pycache__
