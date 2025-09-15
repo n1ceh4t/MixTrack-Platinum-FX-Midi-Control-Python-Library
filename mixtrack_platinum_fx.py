@@ -655,14 +655,16 @@ class MixtrackPlatinumFX:
         
         self.logger.debug(f"Button LED Feedback: Channel {channel}, Note {note}, Velocity {msg.velocity}")
         
-        # Determine deck from channel
-        deck = self._get_deck_for_channel(channel)
-        elif channel == 8:  # FX buttons channel 8
+        # Handle FX button channels first
+        if channel == 8:  # FX buttons channel 8
             self._flash_fx_button_led(note, channel)
             return
         elif channel == 9:  # FX buttons channel 9
             self._flash_fx_button_led(note, channel)
             return
+        
+        # Determine deck from channel
+        deck = self._get_deck_for_channel(channel)
             
         if deck is None:
             self.logger.debug(f"Button LED Feedback: No deck mapping for channel {channel}")
@@ -725,17 +727,35 @@ class MixtrackPlatinumFX:
                 # Find the pad LED type
                 for pad_name, pad_note in self.led_config.pad_notes.items():
                     if pad_note == note:
-                        return LEDType(pad_name)
+                        # Map configuration key to LEDType enum name
+                        led_name = pad_name.upper()
+                        try:
+                            return LEDType[led_name]
+                        except KeyError:
+                            self.logger.warning(f"LEDType {led_name} not found for pad {pad_name}")
+                            return None
             elif note in self.led_config.effect_notes.values():
                 # Find the effect LED type
                 for effect_name, effect_note in self.led_config.effect_notes.items():
                     if effect_note == note:
-                        return LEDType(effect_name)
+                        # Map configuration key to LEDType enum name
+                        led_name = effect_name.upper()
+                        try:
+                            return LEDType[led_name]
+                        except KeyError:
+                            self.logger.warning(f"LEDType {led_name} not found for effect {effect_name}")
+                            return None
             elif note in self.led_config.pad_mode_notes.values():
                 # Find the pad mode LED type
                 for mode_name, mode_note in self.led_config.pad_mode_notes.items():
                     if mode_note == note:
-                        return LEDType(f"PAD_MODE_{mode_name.upper()}")
+                        # Map configuration key to LEDType enum name
+                        led_name = f"PAD_MODE_{mode_name.upper()}"
+                        try:
+                            return LEDType[led_name]
+                        except KeyError:
+                            self.logger.warning(f"LEDType {led_name} not found for mode {mode_name}")
+                            return None
         
         return None
     
