@@ -1,6 +1,6 @@
 # Mixtrack Platinum FX Python Library
 
-A comprehensive, refactored Python library for controlling the Numark Mixtrack Platinum FX DJ controller as a Linux system control interface.
+A Python library for controlling the Numark Mixtrack Platinum FX DJ controller as a Linux system control interface.
 
 ## ✨ Features
 
@@ -19,7 +19,7 @@ A comprehensive, refactored Python library for controlling the Numark Mixtrack P
 
 ```bash
 # Install Python dependencies
-pip install mido psutil
+pip install mido psutil rtmidi
 
 # Install system monitoring tools (optional)
 sudo apt install lm-sensors
@@ -338,6 +338,7 @@ This library is provided as-is for educational and personal use. The MIDI protoc
 ## Contributing
 
 Contributions welcome! Areas for improvement:
+- Testing
 - Additional Linux system integrations
 - More audio software support
 - Enhanced configuration options
